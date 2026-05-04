@@ -38,6 +38,15 @@ input,select{font-family:var(--font);outline:none;}
 .login-logo{text-align:center;margin-bottom:32px;}
 .login-logo-title{font-size:32px;font-weight:900;color:var(--accent);letter-spacing:-1px;}
 .login-logo-sub{font-size:12px;color:var(--text3);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+.auth-card{width:100%;max-width:420px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:0 18px 50px rgba(0,0,0,0.22);}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px;margin-bottom:16px;}
+.auth-tab{padding:10px 8px;border-radius:7px;background:transparent;color:var(--text2);font-size:13px;font-weight:900;}
+.auth-tab.active{background:var(--accent);color:#0f1923;}
+.auth-form{display:none;}
+.auth-form.active{display:block;}
+.auth-helper{font-size:12px;color:var(--text3);line-height:1.45;margin:-4px 0 14px;}
+.auth-error{font-size:12px;color:var(--red);font-weight:800;min-height:17px;margin:8px 0 0;text-align:center;}
+.auth-success{font-size:12px;color:var(--accent);font-weight:800;min-height:17px;margin:8px 0 0;text-align:center;}
 .user-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;width:100%;max-width:420px;margin-bottom:24px;}
 .user-card{
   background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
@@ -438,12 +447,42 @@ input,select{font-family:var(--font);outline:none;}
     <div class="login-logo-title">StudyHub</div>
     <div class="login-logo-sub">Co-working Manager</div>
   </div>
-  <!-- Step 1: Pick user -->
-  <div id="login-step-user" style="width:100%;max-width:420px;">
-    <div style="font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;text-align:center;margin-bottom:16px;">Select your account</div>
-    <div class="user-grid" id="user-select-grid"></div>
+  <!-- Step 1: Sign in or register business account -->
+  <div id="login-step-account" class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="auth-tab-signin" onclick="showAuthMode('signin')">Sign In</button>
+      <button class="auth-tab" id="auth-tab-register" onclick="showAuthMode('register')">Register</button>
+    </div>
+
+    <div id="auth-form-signin" class="auth-form active">
+      <div class="auth-helper">Sign in to your StudyHub account before entering the staff PIN.</div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="signin-email" type="email" autocomplete="email" placeholder="owner@studyhub.com"/></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" id="signin-password" type="password" autocomplete="current-password" placeholder="Enter password"/></div>
+      <button class="btn btn-primary btn-full" onclick="signInAccount()">Sign In</button>
+      <div class="auth-error" id="signin-error"></div>
+      <div class="auth-success" id="signin-success"></div>
+    </div>
+
+    <div id="auth-form-register" class="auth-form">
+      <div class="auth-helper">Create the owner account, then set the first admin PIN for daily access.</div>
+      <div class="form-group"><label class="form-label">Business Name</label><input class="form-input" id="register-business" autocomplete="organization" placeholder="StudyHub Main Branch"/></div>
+      <div class="form-group"><label class="form-label">Owner Name</label><input class="form-input" id="register-name" autocomplete="name" placeholder="Maria Santos"/></div>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="register-email" type="email" autocomplete="email" placeholder="owner@studyhub.com"/></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" id="register-password" type="password" autocomplete="new-password" placeholder="Minimum 6 characters"/></div>
+      <div class="form-group"><label class="form-label">Admin PIN (4 digits)</label><input class="form-input" id="register-pin" type="password" inputmode="numeric" maxlength="4" placeholder="1234"/></div>
+      <button class="btn btn-primary btn-full" onclick="registerAccount()">Create Account</button>
+      <div class="auth-error" id="register-error"></div>
+      <div class="auth-success" id="register-success"></div>
+    </div>
   </div>
-  <!-- Step 2: Enter PIN -->
+
+  <!-- Step 2: Pick user -->
+  <div id="login-step-user" style="display:none;width:100%;max-width:420px;">
+    <div style="font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;text-align:center;margin-bottom:16px;">Select PIN user</div>
+    <div class="user-grid" id="user-select-grid"></div>
+    <button class="pin-back" onclick="signOutAccount()">Sign out account</button>
+  </div>
+  <!-- Step 3: Enter PIN -->
   <div id="login-step-pin" style="display:none;width:100%;max-width:280px;">
     <div style="text-align:center;margin-bottom:20px;">
       <div id="pin-user-avatar" class="user-avatar" style="width:60px;height:60px;font-size:24px;margin:0 auto 8px;"></div>
@@ -606,6 +645,7 @@ const FirebaseDB = (() => {
     const scripts = [
       'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
       'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js',
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',
     ];
     let loaded = 0;
     scripts.forEach(src => {
@@ -625,6 +665,7 @@ const FirebaseDB = (() => {
       await loadFirebaseSDK();
       if (!firebase.apps.length) firebase.initializeApp(config);
       _db = firebase.firestore();
+      window.firebaseAuth = firebase.auth();
       await _db.enablePersistence({ synchronizeTabs: true }).catch(err => {
         if (err.code !== 'failed-precondition' && err.code !== 'unimplemented')
           console.warn('Persistence warning:', err.code);
@@ -803,17 +844,83 @@ function getPaymentTypes() {
 }
 function savePaymentTypes(pt) { localStorage.setItem('sh_paymentTypes', JSON.stringify(pt)); }
 
-// ── User Management ──────────────────────────────────────────────────────────
-function getUsers() {
-  return JSON.parse(localStorage.getItem('sh_users')) || [
-    { id: 'admin', name: 'Admin', pin: '1234', role: 'admin', color: '#00c896' },
-    { id: 'staff1', name: 'Staff 1', pin: '1111', role: 'staff', color: '#6366f1' }
+// ── Account / User Management ────────────────────────────────────────────────
+function getAccounts() { return JSON.parse(localStorage.getItem('sh_accounts')) || []; }
+function saveAccounts(accounts) { localStorage.setItem('sh_accounts', JSON.stringify(accounts)); }
+function getCurrentAccount() { return JSON.parse(localStorage.getItem('sh_currentAccount')); }
+function saveCurrentAccount(account) { localStorage.setItem('sh_currentAccount', JSON.stringify(account)); }
+function clearCurrentAccount() { localStorage.removeItem('sh_currentAccount'); }
+function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
+
+function getDefaultUsers(accountId = '') {
+  return [
+    { id: 'admin', accountId, name: 'Admin', pin: '1234', role: 'admin', color: '#00c896' },
+    { id: 'staff1', accountId, name: 'Staff 1', pin: '1111', role: 'staff', color: '#6366f1' }
   ];
 }
-function saveUsers(users) { localStorage.setItem('sh_users', JSON.stringify(users)); }
+
+function getAllUsers() {
+  return JSON.parse(localStorage.getItem('sh_users')) || getDefaultUsers();
+}
+
+function getUsers() {
+  const account = getCurrentAccount();
+  const users = getAllUsers();
+  if (!account) return users.filter(u => !u.accountId);
+  return users.filter(u => u.accountId === account.id);
+}
+
+function saveUsers(users) {
+  const account = getCurrentAccount();
+  if (!account) {
+    localStorage.setItem('sh_users', JSON.stringify(users));
+    return;
+  }
+  const scopedUsers = users.map(u => ({ ...u, accountId: account.id }));
+  const others = getAllUsers().filter(u => u.accountId && u.accountId !== account.id);
+  localStorage.setItem('sh_users', JSON.stringify([...others, ...scopedUsers]));
+}
+
+async function hashPassword(password, salt) {
+  const raw = `${salt}:${password}`;
+  if (window.crypto?.subtle) {
+    const bytes = new TextEncoder().encode(raw);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return btoa(unescape(encodeURIComponent(raw)));
+}
+
+function publicAccount(account) {
+  if (!account) return null;
+  const { passwordHash, ...safeAccount } = account;
+  return safeAccount;
+}
+
 function getCurrentUser() { return JSON.parse(localStorage.getItem('sh_currentUser')); }
 function saveCurrentUser(user) { localStorage.setItem('sh_currentUser', JSON.stringify(user)); }
 function clearCurrentUser() { localStorage.removeItem('sh_currentUser'); }
+
+// ── Firebase Session Persistence ────────────────────────────────────────────
+function saveFirebaseSession(token) { localStorage.setItem('sh_firebase_token', token); localStorage.setItem('sh_firebase_token_time', Date.now().toString()); }
+function getFirebaseSession() { return localStorage.getItem('sh_firebase_token'); }
+function clearFirebaseSession() { localStorage.removeItem('sh_firebase_token'); localStorage.removeItem('sh_firebase_token_time'); }
+function getFirebaseTokenExpiry() { const time = localStorage.getItem('sh_firebase_token_time'); return time ? parseInt(time) : null; }
+
+async function restoreFirebaseSession() {
+  const token = getFirebaseSession();
+  if (!token) return null;
+  
+  const tokenAge = Date.now() - (getFirebaseTokenExpiry() || 0);
+  const oneHourMs = 60 * 60 * 1000;
+  
+  if (tokenAge > oneHourMs) {
+    clearFirebaseSession();
+    return null;
+  }
+  
+  return token;
+}
 
 // ── Auto-reconnect on network restore ───────────────────────────────────────
 window.addEventListener('online', () => {
@@ -1319,17 +1426,33 @@ const save = () => {
 
 // ─── Firebase Init ────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  // Show login first
-  renderLoginUsers();
-
-  // Restore session if previously logged in
-  const savedUser = getCurrentUser();
-  if (savedUser) {
-    loginUser(savedUser, false); // skip pin
+  // Show account sign-in first, then the staff PIN flow.
+  const savedAccount = getCurrentAccount();
+  if (savedAccount) {
+    showLoginStep('user');
+    renderLoginUsers();
+  } else {
+    showLoginStep('account');
+    showAuthMode(getAccounts().length ? 'signin' : 'register');
   }
+
+  // Require the PIN after the business account gate, even after refresh.
+  if (savedAccount) clearCurrentUser();
 
   try {
     await window.FirebaseDB.init(firebaseConfig);
+    
+    // Restore Firebase session if available and user is still cached
+    const savedUser = getCurrentUser();
+    if (savedUser && savedUser.firebaseUid) {
+      const sessionToken = getFirebaseSession();
+      if (sessionToken) {
+        // Session exists, restore it
+        loginUser(savedUser, false);
+        return;
+      }
+    }
+    
     // Real-time listeners — guarded: won't overwrite if a reset just cleared the data
     window.FirebaseDB.listen('seats', (col, docs) => {
       if (window._resetInProgress) return;
@@ -1364,10 +1487,135 @@ window.addEventListener('DOMContentLoaded', async () => {
 let _loginSelectedUser = null;
 let _pinEntry = '';
 
+function showLoginStep(step) {
+  const accountStep = document.getElementById('login-step-account');
+  const userStep = document.getElementById('login-step-user');
+  const pinStep = document.getElementById('login-step-pin');
+  if (accountStep) accountStep.style.display = step === 'account' ? '' : 'none';
+  if (userStep) userStep.style.display = step === 'user' ? '' : 'none';
+  if (pinStep) pinStep.style.display = step === 'pin' ? '' : 'none';
+}
+
+function showAuthMode(mode) {
+  const isRegister = mode === 'register';
+  document.getElementById('auth-tab-signin')?.classList.toggle('active', !isRegister);
+  document.getElementById('auth-tab-register')?.classList.toggle('active', isRegister);
+  document.getElementById('auth-form-signin')?.classList.toggle('active', !isRegister);
+  document.getElementById('auth-form-register')?.classList.toggle('active', isRegister);
+  setAuthMessage('signin', '');
+  setAuthMessage('register', '');
+}
+
+function setAuthMessage(form, message, type = 'error') {
+  const errorEl = document.getElementById(`${form}-error`);
+  const successEl = document.getElementById(`${form}-success`);
+  if (errorEl) errorEl.textContent = type === 'error' ? message : '';
+  if (successEl) successEl.textContent = type === 'success' ? message : '';
+}
+
+function setAccountSignedIn(account) {
+  // Clear Firebase session when switching accounts
+  const currentFirebaseUser = getCurrentFirebaseUser();
+  if (currentFirebaseUser) {
+    firebaseSignOut();
+  }
+  clearFirebaseSession();
+  
+  saveCurrentAccount(publicAccount(account));
+  clearCurrentUser();
+  state.currentUser = null;
+  _loginSelectedUser = null;
+  _pinEntry = '';
+  renderLoginUsers();
+  showLoginStep('user');
+}
+
+async function registerAccount() {
+  const businessName = document.getElementById('register-business')?.value?.trim();
+  const ownerName = document.getElementById('register-name')?.value?.trim();
+  const email = normalizeEmail(document.getElementById('register-email')?.value);
+  const password = document.getElementById('register-password')?.value || '';
+  const pin = document.getElementById('register-pin')?.value?.trim();
+
+  if (!businessName) { setAuthMessage('register', 'Please enter the business name.'); return; }
+  if (!ownerName) { setAuthMessage('register', 'Please enter the owner name.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAuthMessage('register', 'Please enter a valid email.'); return; }
+  if (password.length < 6) { setAuthMessage('register', 'Password must be at least 6 characters.'); return; }
+  if (!/^\d{4}$/.test(pin)) { setAuthMessage('register', 'PIN must be exactly 4 digits.'); return; }
+
+  const accounts = getAccounts();
+  if (accounts.some(a => normalizeEmail(a.email) === email)) {
+    setAuthMessage('register', 'An account already exists for this email.');
+    return;
+  }
+
+  const account = {
+    id: uid(),
+    businessName,
+    ownerName,
+    email,
+    salt: uid() + Date.now(),
+    createdAt: Date.now()
+  };
+  account.passwordHash = await hashPassword(password, account.salt);
+  saveAccounts([...accounts, account]);
+
+  const existingUsers = getAllUsers().filter(u => u.accountId);
+  const ownerUser = { id: uid(), accountId: account.id, name: ownerName, pin, role: 'admin', color: '#00c896' };
+  localStorage.setItem('sh_users', JSON.stringify([...existingUsers, ownerUser]));
+
+  setAuthMessage('register', 'Account created. Enter your PIN to continue.', 'success');
+  setAccountSignedIn(account);
+}
+
+async function signInAccount() {
+  const email = normalizeEmail(document.getElementById('signin-email')?.value);
+  const password = document.getElementById('signin-password')?.value || '';
+  if (!email || !password) { setAuthMessage('signin', 'Enter your email and password.'); return; }
+
+  const account = getAccounts().find(a => normalizeEmail(a.email) === email);
+  if (!account) { setAuthMessage('signin', 'Account not found. Register first.'); return; }
+
+  const passwordHash = await hashPassword(password, account.salt);
+  if (passwordHash !== account.passwordHash) {
+    setAuthMessage('signin', 'Incorrect password. Try again.');
+    return;
+  }
+
+  setAuthMessage('signin', 'Signed in. Enter your PIN to continue.', 'success');
+  setAccountSignedIn(account);
+}
+
+function signOutAccount() {
+  // Sign out from Firebase
+  const currentFirebaseUser = getCurrentFirebaseUser();
+  if (currentFirebaseUser) {
+    firebaseSignOut();
+  }
+  clearFirebaseSession();
+  
+  clearCurrentAccount();
+  clearCurrentUser();
+  state.currentUser = null;
+  _loginSelectedUser = null;
+  _pinEntry = '';
+  showAuthMode('signin');
+  showLoginStep('account');
+}
+
 function renderLoginUsers() {
   const users = getUsers();
   const grid = document.getElementById('user-select-grid');
   if (!grid) return;
+  if (!getCurrentAccount()) {
+    grid.innerHTML = '';
+    showLoginStep('account');
+    return;
+  }
+  if (!users.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:13px;">No PIN users found for this account.</div>';
+    return;
+  }
   grid.innerHTML = users.map(u => `
     <div class="user-card" onclick="selectLoginUser('${u.id}')">
       <div class="user-avatar" style="background:${u.color||'#00c896'};">${u.name.charAt(0).toUpperCase()}</div>
@@ -1382,8 +1630,7 @@ function selectLoginUser(userId) {
   _loginSelectedUser = users.find(u => u.id === userId);
   if (!_loginSelectedUser) return;
   _pinEntry = '';
-  document.getElementById('login-step-user').style.display = 'none';
-  document.getElementById('login-step-pin').style.display = '';
+  showLoginStep('pin');
   document.getElementById('pin-user-name').textContent = _loginSelectedUser.name;
   document.getElementById('pin-user-role').textContent = _loginSelectedUser.role;
   const av = document.getElementById('pin-user-avatar');
@@ -1396,8 +1643,7 @@ function selectLoginUser(userId) {
 function showUserSelect() {
   _loginSelectedUser = null;
   _pinEntry = '';
-  document.getElementById('login-step-pin').style.display = 'none';
-  document.getElementById('login-step-user').style.display = '';
+  showLoginStep(getCurrentAccount() ? 'user' : 'account');
 }
 
 function pinKey(digit) {
@@ -1419,6 +1665,63 @@ function pinClear() {
   document.getElementById('pin-error').textContent = '';
 }
 
+
+// ═══════════════════ FIREBASE AUTHENTICATION ═════════════════════════════════════
+
+async function firebaseSignInWithEmail(email, password) {
+  try {
+    const userCredential = await window.firebaseAuth.signInWithEmailAndPassword(email, password);
+    return userCredential.user;
+  } catch (error) {
+    const errorMessages = {
+      'auth/invalid-email': 'Invalid email format',
+      'auth/user-disabled': 'User account is disabled',
+      'auth/user-not-found': 'Email or password incorrect',
+      'auth/wrong-password': 'Email or password incorrect',
+    };
+    throw new Error(errorMessages[error.code] || error.message);
+  }
+}
+
+async function firebaseSignUpWithEmail(email, password, displayName) {
+  try {
+    const userCredential = await window.firebaseAuth.createUserWithEmailAndPassword(email, password);
+    if (displayName) {
+      await userCredential.user.updateProfile({ displayName });
+    }
+    return userCredential.user;
+  } catch (error) {
+    const errorMessages = {
+      'auth/invalid-email': 'Invalid email format',
+      'auth/email-already-in-use': 'Email already registered',
+      'auth/weak-password': 'Password must be at least 6 characters',
+    };
+    throw new Error(errorMessages[error.code] || error.message);
+  }
+}
+
+async function firebaseSignOut() {
+  try {
+    await window.firebaseAuth.signOut();
+    clearCurrentUser();
+    state.currentUser = null;
+  } catch (error) {
+    console.error('Sign out error:', error);
+  }
+}
+
+function getCurrentFirebaseUser() {
+  return window.firebaseAuth.currentUser;
+}
+
+async function getFirebaseToken() {
+  const user = getCurrentFirebaseUser();
+  if (user) return await user.getIdToken();
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+
 function updatePinDots() {
   document.querySelectorAll('.pin-dot').forEach((dot, i) => {
     dot.classList.toggle('filled', i < _pinEntry.length);
@@ -1427,11 +1730,52 @@ function updatePinDots() {
 
 function checkPin() {
   if (!_loginSelectedUser) return;
-  if (_pinEntry === _loginSelectedUser.pin) {
-    document.getElementById('pin-error').textContent = '';
-    loginUser(_loginSelectedUser, true);
+  
+  // Try Firebase first if the email exists
+  if (_loginSelectedUser.email) {
+    verifyWithFirebase(_loginSelectedUser.email, _pinEntry);
   } else {
-    document.getElementById('pin-error').textContent = 'Incorrect PIN. Try again.';
+    // Fallback to local PIN for backward compatibility
+    if (_pinEntry === _loginSelectedUser.pin) {
+      document.getElementById('pin-error').textContent = '';
+      loginUser(_loginSelectedUser, true);
+    } else {
+      document.getElementById('pin-error').textContent = 'Incorrect PIN. Try again.';
+      _pinEntry = '';
+      updatePinDots();
+      // Shake animation
+      const section = document.querySelector('.pin-section');
+      section.style.animation = 'none';
+      section.offsetHeight;
+      section.style.animation = 'shake 0.3s ease';
+    }
+  }
+}
+
+async function verifyWithFirebase(email, password) {
+  try {
+    document.getElementById('pin-error').textContent = 'Signing in…';
+    const user = await firebaseSignInWithEmail(email, password);
+    
+    // Save the session token for multi-device support
+    const token = await user.getIdToken();
+    saveFirebaseSession(token);
+    
+    // User signed in successfully
+    document.getElementById('pin-error').textContent = '';
+    _pinEntry = '';
+    updatePinDots();
+    
+    // Get the user data and log them in
+    const userData = {
+      ..._loginSelectedUser,
+      email: user.email,
+      firebaseUid: user.uid
+    };
+    saveCurrentUser(userData);
+    loginUser(userData, true);
+  } catch (error) {
+    document.getElementById('pin-error').textContent = error.message;
     _pinEntry = '';
     updatePinDots();
     // Shake animation
@@ -1461,22 +1805,34 @@ function updateTopbarUser(user) {
 
 function openUserMenu() {
   const user = state.currentUser;
+  const account = getCurrentAccount();
   if (!user) return;
   openDrawer(`
     <div class="drawer-title">👤 <span class="accent">${user.name}</span></div>
     <div style="background:var(--accent-dim);border:1px solid rgba(0,200,150,0.2);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;">
       <div style="font-size:13px;color:var(--text2);">Role: <strong style="color:var(--text);">${user.role.charAt(0).toUpperCase()+user.role.slice(1)}</strong></div>
       <div style="font-size:12px;color:var(--text3);margin-top:4px;">Logged in as ${user.name}</div>
+      ${account ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;">Account: ${account.businessName}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
       ${user.role === 'admin' ? `<button class="btn btn-secondary btn-full" onclick="closeDrawer();navigate('settings');">⚙️ Settings</button>` : ''}
       <button class="btn btn-danger btn-full" onclick="logoutUser()">🚪 Sign Out</button>
+      <button class="btn btn-secondary btn-full" onclick="closeDrawer();signOutAccount();document.getElementById('login-screen').style.display='flex';">Sign Out Account</button>
       <button class="btn btn-secondary btn-full" onclick="closeDrawer()">Cancel</button>
     </div>
   `);
 }
 
 function logoutUser() {
+  // Sign out from Firebase if user is authenticated
+  const currentFirebaseUser = getCurrentFirebaseUser();
+  if (currentFirebaseUser) {
+    firebaseSignOut();
+  }
+  
+  // Clear the Firebase session token
+  clearFirebaseSession();
+  
   clearCurrentUser();
   state.currentUser = null;
   closeDrawer();
@@ -3141,7 +3497,8 @@ function doBackup() {
       rates: state.rates,
       sessions: state.sessions,
       paymentTypes: state.paymentTypes,
-      users: getUsers(),
+      accounts: getAccounts(),
+      users: getAllUsers(),
       printerSettings,
       voucherPools: getVoucherPools(),
       txnCounter: DB.get('sh_txn_counter', 0),
@@ -3216,7 +3573,8 @@ function doRestore() {
   if (d.rates)          { state.rates = d.rates; DB.set('sh_rates', d.rates); }
   if (d.sessions)       { state.sessions = d.sessions; DB.set('sh_sessions', d.sessions); }
   if (d.paymentTypes)   { state.paymentTypes = d.paymentTypes; savePaymentTypes(d.paymentTypes); }
-  if (d.users)          { saveUsers(d.users); renderLoginUsers(); }
+  if (d.accounts)       { saveAccounts(d.accounts); }
+  if (d.users)          { localStorage.setItem('sh_users', JSON.stringify(d.users)); renderLoginUsers(); }
   if (d.printerSettings){ Object.assign(printerSettings, d.printerSettings); savePrinterSettings(); }
   if (d.voucherPools)   { saveVoucherPools(d.voucherPools); }
   if (d.txnCounter)     { DB.set('sh_txn_counter', d.txnCounter); _txnCounter = d.txnCounter; }

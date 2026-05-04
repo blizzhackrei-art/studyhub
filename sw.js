@@ -1,10 +1,10 @@
 const CACHE_NAME = 'studyhub-v3';
 const ASSETS = [
-  '/studyhub/',
-  '/studyhub/index.html',
-  '/studyhub/printer.js',
-  '/studyhub/db.js',
-  '/studyhub/manifest.json',
+  '/',
+  '/index.html',
+  '/printer.js',
+  '/db.js',
+  '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap'
 ];
 
